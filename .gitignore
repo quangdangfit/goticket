@@ -28,5 +28,9 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+
+# Claude config
+.claude/settings.switch.json
+.claude/settings.switch.json

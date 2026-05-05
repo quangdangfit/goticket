@@ -1,0 +1,35 @@
+app:
+  name: goticket
+  env: dev
+  http_addr: ":8080"
+  shutdown_timeout: 15s
+
+mysql:
+  dsn: "goticket:goticket@tcp(127.0.0.1:3306)/goticket?parseTime=true&clientFoundRows=true&charset=utf8mb4"
+  max_open_conns: 30
+  max_idle_conns: 10
+  conn_max_lifetime: 30m
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+  pool_size: 100
+
+kafka:
+  brokers:
+    - "127.0.0.1:9092"
+  client_id: "goticket"
+
+jwt:
+  access_secret: "change-me-access"
+  refresh_secret: "change-me-refresh"
+  access_ttl: 15m
+  refresh_ttl: 720h
+
+ratelimit:
+  orders_per_min: 30
+  holds_per_min: 60
+
+log:
+  level: info
