@@ -25,6 +25,9 @@ import (
 	payprovmock "github.com/quangdangfit/goticket/internal/payment/provider/mock"
 	payrepo "github.com/quangdangfit/goticket/internal/payment/repository"
 	paysvc "github.com/quangdangfit/goticket/internal/payment/service"
+	promohttp "github.com/quangdangfit/goticket/internal/promo/port/http"
+	promorepo "github.com/quangdangfit/goticket/internal/promo/repository"
+	promosvc "github.com/quangdangfit/goticket/internal/promo/service"
 	"github.com/quangdangfit/goticket/internal/server"
 	tickethttp "github.com/quangdangfit/goticket/internal/ticket/port/http"
 	ticketrepo "github.com/quangdangfit/goticket/internal/ticket/repository"
@@ -46,6 +49,18 @@ func (v jwtVerifier) Verify(t string) (string, string, error) { return v.m.Verif
 // (inventory.Inventory for /holds, ticket.AvailabilityReader for ticket
 // listing). Concrete redisInventory satisfies both.
 type invSvcAlias = inventory.Inventory
+
+// promoApplier adapts promo.Service to order.PromoApplier (only Apply
+// is needed; Redeem is invoked separately on payment success).
+type promoApplier struct {
+	svc interface {
+		Apply(ctx context.Context, code, userID string, subtotal int64) (int64, error)
+	}
+}
+
+func (p promoApplier) Apply(ctx context.Context, code, userID string, subtotal int64) (int64, error) {
+	return p.svc.Apply(ctx, code, userID, subtotal)
+}
 
 func main() {
 	cfg, err := config.Load()
@@ -112,7 +127,12 @@ func main() {
 		if inv != nil && rdb != nil {
 			oRepo := orderrepo.New(mysql)
 			idemGuard := idempotency.New(rdb.Client())
-			oSvc := ordersvc.New(oRepo, inv, tSvc, nil, idemGuard)
+
+			pmRepo := promorepo.New(mysql)
+			pmSvc := promosvc.New(pmRepo)
+			promohttp.RegisterRoutes(srv.APIGroup(), promohttp.NewHandler(pmSvc), verifier)
+
+			oSvc := ordersvc.New(oRepo, inv, tSvc, promoApplier{pmSvc}, idemGuard)
 			orderhttp.RegisterRoutes(srv.APIGroup(), orderhttp.NewHandler(oSvc), verifier, nil)
 
 			pRepo := payrepo.New(mysql)
