@@ -27,7 +27,7 @@ type Server struct {
 func New(cfg config.AppConfig) *Server {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	r.Use(middleware.RequestID(), middleware.Recover(), gin.Logger())
+	r.Use(middleware.RequestID(), middleware.Recover(), middleware.Metrics(), gin.Logger())
 	registerOps(r)
 	return &Server{
 		cfg:    cfg,

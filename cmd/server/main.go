@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/quangdangfit/goticket/config"
 	"github.com/quangdangfit/goticket/internal/dbs"
 	"github.com/quangdangfit/goticket/internal/event"
@@ -29,6 +31,7 @@ import (
 	promorepo "github.com/quangdangfit/goticket/internal/promo/repository"
 	promosvc "github.com/quangdangfit/goticket/internal/promo/service"
 	"github.com/quangdangfit/goticket/internal/server"
+	"github.com/quangdangfit/goticket/internal/server/middleware"
 	tickethttp "github.com/quangdangfit/goticket/internal/ticket/port/http"
 	ticketrepo "github.com/quangdangfit/goticket/internal/ticket/repository"
 	ticketsvc "github.com/quangdangfit/goticket/internal/ticket/service"
@@ -133,7 +136,15 @@ func main() {
 			promohttp.RegisterRoutes(srv.APIGroup(), promohttp.NewHandler(pmSvc), verifier)
 
 			oSvc := ordersvc.New(oRepo, inv, tSvc, promoApplier{pmSvc}, idemGuard)
-			orderhttp.RegisterRoutes(srv.APIGroup(), orderhttp.NewHandler(oSvc), verifier, nil)
+			ordersRL := middleware.RateLimit(rdb.Client(), cfg.RateLimit.OrdersPerMin, func(c *gin.Context) string {
+				if uid, ok := c.Get("user_id"); ok {
+					if s, _ := uid.(string); s != "" {
+						return "u:" + s
+					}
+				}
+				return "ip:" + c.ClientIP()
+			})
+			orderhttp.RegisterRoutes(srv.APIGroup(), orderhttp.NewHandler(oSvc), verifier, ordersRL)
 
 			pRepo := payrepo.New(mysql)
 			pSvc := paysvc.New(pRepo, payprovmock.New(), oSvc, pub)

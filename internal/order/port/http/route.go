@@ -6,7 +6,8 @@ import (
 	"github.com/quangdangfit/goticket/internal/server/middleware"
 )
 
-// RegisterRoutes mounts /orders endpoints (auth required).
+// RegisterRoutes mounts /orders endpoints (auth required). rl is an
+// optional rate-limit handler (e.g. token bucket per user).
 func RegisterRoutes(rg *gin.RouterGroup, h *Handler, verifier middleware.TokenVerifier, rl gin.HandlerFunc) {
 	g := rg.Group("/orders", middleware.Auth(verifier))
 	if rl != nil {
