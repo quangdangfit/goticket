@@ -25,4 +25,6 @@ type AvailabilityReader interface {
 type Service interface {
 	Create(ctx context.Context, showtimeID string, in dto.CreateTicketTypeInput) (*dto.TicketType, error)
 	ListByShowtime(ctx context.Context, showtimeID string) ([]*dto.TicketType, error)
+	// UnitPrice satisfies order.PriceLookup.
+	UnitPrice(ctx context.Context, ticketTypeID string) (int64, string, error)
 }

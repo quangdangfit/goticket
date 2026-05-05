@@ -57,6 +57,16 @@ func (s *ticketService) ListByShowtime(ctx context.Context, showtimeID string) (
 	return out, nil
 }
 
+// UnitPrice satisfies order.PriceLookup so the order service can resolve
+// price/currency without depending on the ticket repository directly.
+func (s *ticketService) UnitPrice(ctx context.Context, ticketTypeID string) (int64, string, error) {
+	t, err := s.repo.GetType(ctx, ticketTypeID)
+	if err != nil {
+		return 0, "", err
+	}
+	return t.PriceMinor, t.Currency, nil
+}
+
 func (s *ticketService) toDTO(ctx context.Context, t *model.TicketType) *dto.TicketType {
 	avail := t.TotalQuota
 	if s.avail != nil {

@@ -18,6 +18,9 @@ import (
 	eventsvc "github.com/quangdangfit/goticket/internal/event/service"
 	invhttp "github.com/quangdangfit/goticket/internal/inventory/port/http"
 	invsvc "github.com/quangdangfit/goticket/internal/inventory/service"
+	orderhttp "github.com/quangdangfit/goticket/internal/order/port/http"
+	orderrepo "github.com/quangdangfit/goticket/internal/order/repository"
+	ordersvc "github.com/quangdangfit/goticket/internal/order/service"
 	"github.com/quangdangfit/goticket/internal/server"
 	tickethttp "github.com/quangdangfit/goticket/internal/ticket/port/http"
 	ticketrepo "github.com/quangdangfit/goticket/internal/ticket/repository"
@@ -25,6 +28,7 @@ import (
 	userhttp "github.com/quangdangfit/goticket/internal/user/port/http"
 	userrepo "github.com/quangdangfit/goticket/internal/user/repository"
 	usersvc "github.com/quangdangfit/goticket/internal/user/service"
+	"github.com/quangdangfit/goticket/pkg/idempotency"
 	"github.com/quangdangfit/goticket/pkg/jwt"
 	"github.com/quangdangfit/goticket/pkg/logger"
 )
@@ -99,6 +103,13 @@ func main() {
 		tickethttp.RegisterRoutes(srv.APIGroup(), tickethttp.NewHandler(tSvc), verifier)
 		if inv != nil {
 			invhttp.RegisterRoutes(srv.APIGroup(), invhttp.NewHandler(inv), verifier)
+		}
+
+		if inv != nil && rdb != nil {
+			oRepo := orderrepo.New(mysql)
+			idemGuard := idempotency.New(rdb.Client())
+			oSvc := ordersvc.New(oRepo, inv, tSvc, nil, idemGuard)
+			orderhttp.RegisterRoutes(srv.APIGroup(), orderhttp.NewHandler(oSvc), verifier, nil)
 		}
 	}
 
