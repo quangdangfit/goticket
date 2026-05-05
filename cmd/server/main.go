@@ -12,9 +12,12 @@ import (
 	"github.com/quangdangfit/goticket/config"
 	"github.com/quangdangfit/goticket/internal/dbs"
 	"github.com/quangdangfit/goticket/internal/event"
+	"github.com/quangdangfit/goticket/internal/inventory"
 	eventhttp "github.com/quangdangfit/goticket/internal/event/port/http"
 	eventrepo "github.com/quangdangfit/goticket/internal/event/repository"
 	eventsvc "github.com/quangdangfit/goticket/internal/event/service"
+	invhttp "github.com/quangdangfit/goticket/internal/inventory/port/http"
+	invsvc "github.com/quangdangfit/goticket/internal/inventory/service"
 	"github.com/quangdangfit/goticket/internal/server"
 	tickethttp "github.com/quangdangfit/goticket/internal/ticket/port/http"
 	ticketrepo "github.com/quangdangfit/goticket/internal/ticket/repository"
@@ -30,6 +33,11 @@ import (
 type jwtVerifier struct{ m jwt.Manager }
 
 func (v jwtVerifier) Verify(t string) (string, string, error) { return v.m.Verify(t) }
+
+// invSvcAlias bundles the two inventory ports we need at the wiring site
+// (inventory.Inventory for /holds, ticket.AvailabilityReader for ticket
+// listing). Concrete redisInventory satisfies both.
+type invSvcAlias = inventory.Inventory
 
 func main() {
 	cfg, err := config.Load()
@@ -79,8 +87,19 @@ func main() {
 		eventhttp.RegisterRoutes(srv.APIGroup(), eventhttp.NewHandler(eSvc), verifier)
 
 		tRepo := ticketrepo.New(mysql)
-		tSvc := ticketsvc.New(tRepo, nil) // availability reader wired in phase 4
+		var inv = func() interface {
+			invSvcAlias
+		} {
+			if rdb == nil {
+				return nil
+			}
+			return invsvc.New(rdb.Client())
+		}()
+		tSvc := ticketsvc.New(tRepo, inv)
 		tickethttp.RegisterRoutes(srv.APIGroup(), tickethttp.NewHandler(tSvc), verifier)
+		if inv != nil {
+			invhttp.RegisterRoutes(srv.APIGroup(), invhttp.NewHandler(inv), verifier)
+		}
 	}
 
 	if err := srv.Run(ctx); err != nil {
