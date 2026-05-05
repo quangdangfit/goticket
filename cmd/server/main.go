@@ -30,8 +30,11 @@ import (
 	promohttp "github.com/quangdangfit/goticket/internal/promo/port/http"
 	promorepo "github.com/quangdangfit/goticket/internal/promo/repository"
 	promosvc "github.com/quangdangfit/goticket/internal/promo/service"
+	notifsender "github.com/quangdangfit/goticket/internal/notification/sender"
+	notifsvc "github.com/quangdangfit/goticket/internal/notification/service"
 	"github.com/quangdangfit/goticket/internal/server"
 	"github.com/quangdangfit/goticket/internal/server/middleware"
+	userdto "github.com/quangdangfit/goticket/internal/user/dto"
 	tickethttp "github.com/quangdangfit/goticket/internal/ticket/port/http"
 	ticketrepo "github.com/quangdangfit/goticket/internal/ticket/repository"
 	ticketsvc "github.com/quangdangfit/goticket/internal/ticket/service"
@@ -42,6 +45,21 @@ import (
 	"github.com/quangdangfit/goticket/pkg/jwt"
 	"github.com/quangdangfit/goticket/pkg/logger"
 )
+
+// userEmailLookup adapts user.Service to notification's Profile port.
+type userEmailLookup struct {
+	svc interface {
+		Profile(ctx context.Context, userID string) (*userdto.Profile, error)
+	}
+}
+
+func (u userEmailLookup) Email(ctx context.Context, userID string) (string, error) {
+	p, err := u.svc.Profile(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	return p.Email, nil
+}
 
 // jwtVerifier adapts jwt.Manager to middleware.TokenVerifier.
 type jwtVerifier struct{ m jwt.Manager }
@@ -149,6 +167,16 @@ func main() {
 			pRepo := payrepo.New(mysql)
 			pSvc := paysvc.New(pRepo, payprovmock.New(), oSvc, pub)
 			payhttp.RegisterRoutes(srv.WebhookGroup(), payhttp.NewHandler(pSvc))
+
+			if len(cfg.Kafka.Brokers) > 0 {
+				cons := notifsvc.New(cfg.Kafka.Brokers, "goticket-notifications",
+					notifsender.NewLog(), userEmailLookup{uSvc})
+				go func() {
+					if err := cons.Run(ctx); err != nil {
+						slog.Error("notification consumer", "err", err)
+					}
+				}()
+			}
 		}
 	}
 
