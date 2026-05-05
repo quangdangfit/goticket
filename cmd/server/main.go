@@ -11,8 +11,17 @@ import (
 	"github.com/quangdangfit/goticket/config"
 	"github.com/quangdangfit/goticket/internal/dbs"
 	"github.com/quangdangfit/goticket/internal/server"
+	userhttp "github.com/quangdangfit/goticket/internal/user/port/http"
+	userrepo "github.com/quangdangfit/goticket/internal/user/repository"
+	usersvc "github.com/quangdangfit/goticket/internal/user/service"
+	"github.com/quangdangfit/goticket/pkg/jwt"
 	"github.com/quangdangfit/goticket/pkg/logger"
 )
+
+// jwtVerifier adapts jwt.Manager to middleware.TokenVerifier.
+type jwtVerifier struct{ m jwt.Manager }
+
+func (v jwtVerifier) Verify(t string) (string, string, error) { return v.m.Verify(t) }
 
 func main() {
 	cfg, err := config.Load()
@@ -44,10 +53,15 @@ func main() {
 	defer func() { _ = pub.Close() }()
 
 	srv := server.New(cfg.App)
-	// Domain packages will be registered here in later phases:
-	//   user.Register(srv.APIGroup(), userHandler)
-	//   event.Register(srv.APIGroup(), eventHandler)
-	//   ...
+
+	jwtMgr := jwt.New(cfg.JWT.AccessSecret, cfg.JWT.RefreshSecret, cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL)
+	verifier := jwtVerifier{m: jwtMgr}
+
+	if mysql != nil {
+		uRepo := userrepo.New(mysql)
+		uSvc := usersvc.New(uRepo, jwtMgr)
+		userhttp.RegisterRoutes(srv.APIGroup(), userhttp.NewHandler(uSvc), verifier)
+	}
 
 	if err := srv.Run(ctx); err != nil {
 		slog.Error("server stopped", "err", err)
