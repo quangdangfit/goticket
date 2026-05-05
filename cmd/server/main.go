@@ -21,6 +21,10 @@ import (
 	orderhttp "github.com/quangdangfit/goticket/internal/order/port/http"
 	orderrepo "github.com/quangdangfit/goticket/internal/order/repository"
 	ordersvc "github.com/quangdangfit/goticket/internal/order/service"
+	payhttp "github.com/quangdangfit/goticket/internal/payment/port/http"
+	payprovmock "github.com/quangdangfit/goticket/internal/payment/provider/mock"
+	payrepo "github.com/quangdangfit/goticket/internal/payment/repository"
+	paysvc "github.com/quangdangfit/goticket/internal/payment/service"
 	"github.com/quangdangfit/goticket/internal/server"
 	tickethttp "github.com/quangdangfit/goticket/internal/ticket/port/http"
 	ticketrepo "github.com/quangdangfit/goticket/internal/ticket/repository"
@@ -110,6 +114,10 @@ func main() {
 			idemGuard := idempotency.New(rdb.Client())
 			oSvc := ordersvc.New(oRepo, inv, tSvc, nil, idemGuard)
 			orderhttp.RegisterRoutes(srv.APIGroup(), orderhttp.NewHandler(oSvc), verifier, nil)
+
+			pRepo := payrepo.New(mysql)
+			pSvc := paysvc.New(pRepo, payprovmock.New(), oSvc, pub)
+			payhttp.RegisterRoutes(srv.WebhookGroup(), payhttp.NewHandler(pSvc))
 		}
 	}
 

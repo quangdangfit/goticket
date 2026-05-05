@@ -135,6 +135,31 @@ func (s *orderService) Get(ctx context.Context, userID, id string) (*dto.Order, 
 	return &d, nil
 }
 
+// MarkPaid transitions a pending order to paid and confirms the inventory
+// hold (making the deduction permanent).
+func (s *orderService) MarkPaid(ctx context.Context, orderID string) error {
+	if err := s.repo.UpdateStatus(ctx, orderID, model.StatusPending, model.StatusPaid); err != nil {
+		return err
+	}
+	o, err := s.repo.GetByID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+	return s.inv.Confirm(ctx, o.HoldID)
+}
+
+// MarkFailed transitions pending → cancelled and releases the hold.
+func (s *orderService) MarkFailed(ctx context.Context, orderID string) error {
+	o, err := s.repo.GetByID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.UpdateStatus(ctx, orderID, model.StatusPending, model.StatusCancelled); err != nil {
+		return err
+	}
+	return s.inv.Release(ctx, o.HoldID)
+}
+
 func (s *orderService) Cancel(ctx context.Context, userID, id string) error {
 	o, err := s.repo.GetByID(ctx, id)
 	if err != nil {

@@ -31,4 +31,8 @@ type Service interface {
 	Checkout(ctx context.Context, userID string, in dto.CheckoutInput) (*dto.CheckoutOutput, error)
 	Get(ctx context.Context, userID, id string) (*dto.Order, error)
 	Cancel(ctx context.Context, userID, id string) error
+
+	// MarkPaid / MarkFailed satisfy payment.OrderUpdater.
+	MarkPaid(ctx context.Context, orderID string) error
+	MarkFailed(ctx context.Context, orderID string) error
 }
